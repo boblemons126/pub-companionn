@@ -1,0 +1,349 @@
+// Prisma schema (prisma/schema.prisma)\
+generator
+client
+{
+  provider = "prisma-client-js"
+}
+\
+datasource db
+{
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+\
+model User
+{
+  \
+  id              String
+  @id @
+  default(cuid())
+  email           String?
+  @unique
+  \
+  phone           String?
+  @unique
+  \
+  name            String
+  age             Int?
+  weight          Decimal?
+  gender          String?
+  avatarUrl       String?
+  @map("avatar_url")
+  \
+  authProvider    String
+  @map("auth_provider")
+  \
+  authProviderId  String
+  @map("auth_provider_id")
+  \
+  isVerified      Boolean
+  @
+  default(false)
+  @map("is_verified")
+  \
+  createdAt       DateTime
+  @
+  default(now())
+  @map("created_at")
+  \
+  updatedAt       DateTime
+  @updatedAt @map("updated_at")
+  \
+  lastLogin       DateTime?
+  @map("last_login")
+
+  // Relations\
+  emergencyContacts
+  EmergencyContact[]
+  \
+  groupMemberships  GroupMembership[]
+  sessions          Session[]
+  drinks            Drink[]
+  settings          UserSettings?
+  createdGroups     FriendGroup[]
+  @relation("GroupCreator")
+
+  @@map("users")\
+}
+\
+model EmergencyContact
+{
+  \
+  id           String
+  @id @
+  default(cuid())
+  userId       String
+  @map("user_id")
+  \
+  name         String
+  phone        String
+  relationship String?\
+  isPrimary    Boolean
+  @
+  default(false)
+  @map("is_primary")
+  \
+  createdAt    DateTime
+  @
+  default(now())
+  @map("created_at")
+  \
+  user User
+  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_contacts")\
+}
+\
+model FriendGroup
+{
+  \
+  id          String
+  @id @
+  default(cuid())
+  name        String
+  description String?
+  createdBy   String
+  @map("created_by")
+  \
+  avatarUrl   String?
+  @map("avatar_url")
+  \
+  inviteCode  String
+  @unique @map("invite_code")
+  \
+  isActive    Boolean
+  @
+  default(true)
+  @map("is_active")
+  \
+  createdAt   DateTime
+  @
+  default(now())
+  @map("created_at")
+  \
+  updatedAt   DateTime
+  @updatedAt @map("updated_at")
+  \
+  creator     User
+  @relation("GroupCreator", fields: [createdBy], references: [id])
+  members
+  GroupMembership[]
+  sessions
+  Session[]
+
+  @@map("friend_groups")
+}
+
+model
+GroupMembership
+{
+  id
+  String
+  @id @
+  default(cuid())
+  groupId  String
+  @map("group_id")
+  userId
+  String
+  @map("user_id")
+  role
+  String
+  @
+  default("member")
+  joinedAt DateTime
+  @
+  default(now())
+  @map("joined_at")
+
+  group
+  FriendGroup
+  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user
+  User
+  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_memberships")
+}
+
+model
+Session
+{
+  id
+  String
+  @id @
+  default(cuid())
+  userId       String
+  @map("user_id")
+  groupId
+  String?   @map("group_id")
+  name         String
+  venueName
+  String?   @map("venue_name")
+  venueAddress String?   @map("venue_address")
+  latitude     Decimal?
+  longitude    Decimal?
+  startTime    DateTime
+  @map("start_time")
+  endTime
+  DateTime? @map("end_time")
+  totalSpent   Decimal
+  @
+  default(0)
+  @map("total_spent")
+  status
+  String
+  @
+  default("active")
+  createdAt    DateTime
+  @
+  default(now())
+  @map("created_at")
+  updatedAt
+  DateTime
+  @updatedAt @map("updated_at")
+
+  user
+  User
+  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group
+  FriendGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  drinks Drink[]
+
+  @@map("sessions")
+}
+
+model
+Drink
+{
+  id
+  String
+  @id @
+  default(cuid())
+  sessionId         String
+  @map("session_id")
+  userId
+  String
+  @map("user_id")
+  name
+  String
+  type              String
+  ?
+  alcoholPercentage Decimal?
+  @map("alcohol_percentage")
+  volumeMl
+  Int?     @map("volume_ml")
+  price             Decimal?
+  venueName         String?  @map("venue_name")
+  consumedAt        DateTime
+  @
+  default(now())
+  @map("consumed_at")
+
+  session
+  Session
+  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user
+  User
+  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("drinks")
+}
+
+model
+UserSettings
+{
+  id
+  String
+  @id @
+  default(cuid())
+  userId               String
+  @unique @map("user_id")
+  bacWarnings
+  Boolean
+  @
+  default(true)
+  @map("bac_warnings")
+  bacLimit
+  Decimal
+  @
+  default(0.08)
+  @map("bac_limit")
+  hydrationReminders
+  Boolean
+  @
+  default(true)
+  @map("hydration_reminders")
+  hydrationInterval
+  Int
+  @
+  default(30)
+  @map("hydration_interval")
+  spendingLimits
+  Boolean
+  @
+  default(false)
+  @map("spending_limits")
+  dailySpendingLimit
+  Decimal
+  @
+  default(50)
+  @map("daily_spending_limit")
+  pushNotifications
+  Boolean
+  @
+  default(true)
+  @map("push_notifications")
+  locationSharing
+  Boolean
+  @
+  default(true)
+  @map("location_sharing")
+  soundEffects
+  Boolean
+  @
+  default(true)
+  @map("sound_effects")
+  createdAt
+  DateTime
+  @
+  default(now())
+  @map("created_at")
+  updatedAt
+  DateTime
+  @updatedAt @map("updated_at")
+
+  user
+  User
+  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model
+VerificationCode
+{
+  id
+  String
+  @id @
+  default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  @map("expires_at")
+  isUsed
+  Boolean
+  @
+  default(false)
+  @map("is_used")
+  attempts
+  Int
+  @
+  default(0)
+  createdAt DateTime
+  @
+  default(now())
+  @map("created_at")
+
+  @@map("verification_codes")
+}

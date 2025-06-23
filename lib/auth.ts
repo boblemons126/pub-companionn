@@ -1,31 +1,9 @@
 import type { NextAuthOptions } from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import AppleProvider from "next-auth/providers/apple"
 import CredentialsProvider from "next-auth/providers/credentials"
 
 // Simplified auth configuration to avoid database issues
 export const authOptions: NextAuthOptions = {
   providers: [
-    // Google OAuth - only if configured
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? [
-          GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          }),
-        ]
-      : []),
-
-    // Apple Sign-In - only if configured
-    ...(process.env.APPLE_ID && process.env.APPLE_SECRET
-      ? [
-          AppleProvider({
-            clientId: process.env.APPLE_ID,
-            clientSecret: process.env.APPLE_SECRET,
-          }),
-        ]
-      : []),
-
     // Email Verification - simplified without database for now
     CredentialsProvider({
       id: "email-verification",
@@ -78,14 +56,18 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.userId = user.id
-        token.phone = user.phone
+        if ("phone" in user && user.phone) {
+          token.phone = user.phone
+        }
       }
       return token
     },
     async session({ session, token }) {
-      if (token) {
+      if (token && session.user) {
         session.user.id = token.userId as string
-        session.user.phone = token.phone as string
+        if (token.phone) {
+          session.user.phone = token.phone as string
+        }
       }
       return session
     },
