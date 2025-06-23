@@ -1,10 +1,10 @@
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { prisma } from "./db"
 
-// Simplified auth configuration to avoid database issues
 export const authOptions: NextAuthOptions = {
   providers: [
-    // Email Verification - simplified without database for now
+    // Email Verification
     CredentialsProvider({
       id: "email-verification",
       name: "Email Verification",
@@ -15,20 +15,56 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.code) return null
 
-        // For now, accept any 6-digit code for testing
-        if (credentials.code.length === 6 && /^\d+$/.test(credentials.code)) {
-          return {
-            id: "temp-user",
-            name: "Test User",
-            email: credentials.email,
-          }
-        }
+        try {
+          // Find verification code
+          const verification = await prisma.verificationCode.findFirst({
+            where: {
+              email: credentials.email,
+              code: credentials.code,
+              isUsed: false,
+              expiresAt: { gt: new Date() },
+            },
+          })
 
-        return null
+          if (!verification) return null
+
+          // Mark code as used
+          await prisma.verificationCode.update({
+            where: { id: verification.id },
+            data: { isUsed: true },
+          })
+
+          // Find or create user
+          let user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+          })
+
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                email: credentials.email,
+                name: "User",
+                authProvider: "email",
+                authProviderId: credentials.email,
+                isVerified: true,
+              },
+            })
+          }
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.avatarUrl,
+          }
+        } catch (error) {
+          console.error("Email auth error:", error)
+          return null
+        }
       },
     }),
 
-    // Phone Verification - simplified
+    // Phone Verification
     CredentialsProvider({
       id: "phone-verification",
       name: "Phone Verification",
@@ -39,16 +75,53 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.phone || !credentials?.code) return null
 
-        // For now, accept any 6-digit code for testing
-        if (credentials.code.length === 6 && /^\d+$/.test(credentials.code)) {
-          return {
-            id: "temp-user",
-            name: "Test User",
-            phone: credentials.phone,
-          }
-        }
+        try {
+          // Find verification code
+          const verification = await prisma.verificationCode.findFirst({
+            where: {
+              phone: credentials.phone,
+              code: credentials.code,
+              isUsed: false,
+              expiresAt: { gt: new Date() },
+            },
+          })
 
-        return null
+          if (!verification) return null
+
+          // Mark code as used
+          await prisma.verificationCode.update({
+            where: { id: verification.id },
+            data: { isUsed: true },
+          })
+
+          // Find or create user
+          let user = await prisma.user.findUnique({
+            where: { phone: credentials.phone },
+          })
+
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                phone: credentials.phone,
+                name: "User",
+                authProvider: "phone",
+                authProviderId: credentials.phone,
+                isVerified: true,
+              },
+            })
+          }
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            image: user.avatarUrl,
+          }
+        } catch (error) {
+          console.error("Phone auth error:", error)
+          return null
+        }
       },
     }),
   ],

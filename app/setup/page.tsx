@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CheckCircle, Smartphone, Mail, ArrowLeft } from "lucide-react"
-import { AuthProvider } from "@/components/auth-provider"
 
 interface AuthProviders {
   google: boolean
@@ -17,7 +16,7 @@ interface AuthProviders {
   sms: boolean
 }
 
-function SetupContent() {
+export default function Setup() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [availableProviders, setAvailableProviders] = useState<AuthProviders>({
@@ -33,6 +32,18 @@ function SetupContent() {
   const [verificationCode, setVerificationCode] = useState("")
   const [showVerification, setShowVerification] = useState(false)
   const [error, setError] = useState("")
+  const [devCode, setDevCode] = useState("")
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      const session = await getSession()
+      if (session) {
+        router.push("/")
+      }
+    }
+    checkAuth()
+  }, [router])
 
   // Fetch available providers
   useEffect(() => {
@@ -48,59 +59,12 @@ function SetupContent() {
       })
   }, [])
 
-  const signInWithEmail = async (email: string, code: string) => {
+  const handleSendEmailCode = async () => {
+    if (!email.trim()) return
+
     setIsLoading(true)
-    try {
-      const result = await signIn("email-verification", {
-        email,
-        code,
-        redirect: false,
-      })
+    setError("")
 
-      if (result?.error) {
-        throw new Error(result.error)
-      }
-
-      if (result?.ok) {
-        router.push("/")
-        return { success: true }
-      }
-
-      throw new Error("Sign in failed")
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const signInWithPhone = async (phone: string, code: string) => {
-    setIsLoading(true)
-    try {
-      const result = await signIn("phone-verification", {
-        phone,
-        code,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        throw new Error(result.error)
-      }
-
-      if (result?.ok) {
-        router.push("/")
-        return { success: true }
-      }
-
-      throw new Error("Sign in failed")
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const sendEmailCode = async (email: string) => {
     try {
       const response = await fetch("/api/auth/send-email-code", {
         method: "POST",
@@ -109,13 +73,57 @@ function SetupContent() {
       })
 
       const data = await response.json()
-      return data
-    } catch (error: any) {
-      return { success: false, error: error.message }
+
+      if (data.success) {
+        setShowVerification(true)
+        setAuthMethod("email")
+        if (data.devCode) {
+          setDevCode(data.devCode)
+          console.log("📧 Email Code (DEV):", data.devCode)
+        }
+      } else {
+        setError(data.error || "Failed to send verification code")
+      }
+    } catch (error) {
+      console.error("Send email error:", error)
+      setError("Failed to send verification code")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const sendSMSCode = async (phone: string) => {
+  const handleVerifyEmail = async () => {
+    if (!verificationCode.trim()) return
+
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const result = await signIn("email-verification", {
+        email,
+        code: verificationCode,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError("Invalid verification code")
+      } else if (result?.ok) {
+        router.push("/")
+      }
+    } catch (error) {
+      console.error("Verify email error:", error)
+      setError("Failed to verify code")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSendSMSCode = async () => {
+    if (!phone.trim()) return
+
+    setIsLoading(true)
+    setError("")
+
     try {
       const response = await fetch("/api/auth/send-sms-code", {
         method: "POST",
@@ -124,59 +132,48 @@ function SetupContent() {
       })
 
       const data = await response.json()
-      return data
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
-  }
 
-  const handleSendEmailCode = async () => {
-    if (!email.trim()) return
-
-    const result = await sendEmailCode(email)
-    if (result.success) {
-      setShowVerification(true)
-      setAuthMethod("email")
-      setError("")
-      if (result.devCode) {
-        console.log("📧 Email Code (DEV):", result.devCode)
+      if (data.success) {
+        setShowVerification(true)
+        setAuthMethod("phone")
+        if (data.devCode) {
+          setDevCode(data.devCode)
+          console.log("📱 SMS Code (DEV):", data.devCode)
+        }
+      } else {
+        setError(data.error || "Failed to send verification code")
       }
-    } else {
-      setError(result.error)
-    }
-  }
-
-  const handleVerifyEmail = async () => {
-    if (!verificationCode.trim()) return
-
-    const result = await signInWithEmail(email, verificationCode)
-    if (!result.success) {
-      setError("Invalid verification code")
-    }
-  }
-
-  const handleSendSMSCode = async () => {
-    if (!phone.trim()) return
-
-    const result = await sendSMSCode(phone)
-    if (result.success) {
-      setShowVerification(true)
-      setAuthMethod("phone")
-      setError("")
-      if (result.devCode) {
-        console.log("📱 SMS Code (DEV):", result.devCode)
-      }
-    } else {
-      setError(result.error)
+    } catch (error) {
+      console.error("Send SMS error:", error)
+      setError("Failed to send verification code")
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const handleVerifyPhone = async () => {
     if (!verificationCode.trim()) return
 
-    const result = await signInWithPhone(phone, verificationCode)
-    if (!result.success) {
-      setError("Invalid verification code")
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const result = await signIn("phone-verification", {
+        phone,
+        code: verificationCode,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError("Invalid verification code")
+      } else if (result?.ok) {
+        router.push("/")
+      }
+    } catch (error) {
+      console.error("Verify phone error:", error)
+      setError("Failed to verify code")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -187,6 +184,7 @@ function SetupContent() {
     setError("")
     setEmail("")
     setPhone("")
+    setDevCode("")
   }
 
   if (showVerification) {
@@ -212,6 +210,11 @@ function SetupContent() {
               Enter the verification code sent to{" "}
               <span className="font-medium">{authMethod === "email" ? email : phone}</span>
             </CardDescription>
+            {devCode && (
+              <div className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded text-yellow-200 text-sm">
+                <strong>DEV CODE:</strong> {devCode}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
@@ -287,8 +290,17 @@ function SetupContent() {
                 disabled={!email.trim() || isLoading}
                 className="w-full bg-blue-600 hover:bg-blue-700"
               >
-                <Mail className="w-5 h-5 mr-2" />
-                Continue with Email
+                {isLoading && authMethod === "email" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Sending...
+                  </div>
+                ) : (
+                  <>
+                    <Mail className="w-5 h-5 mr-2" />
+                    Continue with Email
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -310,21 +322,26 @@ function SetupContent() {
                 disabled={!phone.trim() || isLoading}
                 className="w-full bg-green-600 hover:bg-green-700"
               >
-                <Smartphone className="w-5 h-5 mr-2" />
-                Continue with Phone
+                {isLoading && authMethod === "phone" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Sending...
+                  </div>
+                ) : (
+                  <>
+                    <Smartphone className="w-5 h-5 mr-2" />
+                    Continue with Phone
+                  </>
+                )}
               </Button>
             </div>
           )}
+
+          <div className="text-center text-sm text-gray-400 mt-4">
+            By continuing, you agree to our Terms of Service and Privacy Policy
+          </div>
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-export default function Setup() {
-  return (
-    <AuthProvider>
-      <SetupContent />
-    </AuthProvider>
   )
 }

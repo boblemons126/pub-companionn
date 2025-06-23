@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/db"
 import { z } from "zod"
 
 const sendSMSSchema = z.object({
@@ -10,8 +11,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { phone } = sendSMSSchema.parse(body)
 
-    // For testing - generate a simple code
+    // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString()
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+    // Save verification code to database
+    await prisma.verificationCode.create({
+      data: {
+        phone,
+        code,
+        expiresAt,
+      },
+    })
 
     // In development, always return success with the code
     console.log(`📱 SMS verification code for ${phone}: ${code}`)
