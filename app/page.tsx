@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Zap,
   Target,
+  UserPlus,
 } from "lucide-react"
 import { Navigation } from "@/components/navigation"
 
@@ -211,14 +212,14 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-3 mb-6">
             <Button onClick={() => startNewSession("solo")} className="h-20 bg-blue-600 hover:bg-blue-700 flex-col">
               <Play className="h-6 w-6 mb-2" />
-              <span className="text-sm">Start Solo Session</span>
+              <span className="text-sm">Create Session</span>
             </Button>
             <Button
               onClick={() => startNewSession("group")}
               className="h-20 bg-purple-600 hover:bg-purple-700 flex-col"
             >
-              <Users className="h-6 w-6 mb-2" />
-              <span className="text-sm">Start Group Session</span>
+              <UserPlus className="h-6 w-6 mb-2" />
+              <span className="text-sm">Add A Group</span>
             </Button>
           </div>
         )}
